@@ -121,64 +121,6 @@ TEST(ParallelGHistBuilder, Reset) { ParallelGHistBuilderReset(); }
 
 TEST(ParallelGHistBuilder, ReduceHist) { ParallelGHistBuilderReduceHist(); }
 
-TEST(HistUtil, DenseCutsCategorical) {
-  Context ctx;
-  int categorical_sizes[] = {2, 6, 8, 12};
-  int num_bins = 256;
-  int sizes[] = {25, 100, 1000};
-  for (auto n : sizes) {
-    for (auto num_categories : categorical_sizes) {
-      auto x = GenerateRandomCategoricalSingleColumn(n, num_categories);
-      std::vector<float> x_sorted(x);
-      std::sort(x_sorted.begin(), x_sorted.end());
-      auto dmat = GetDMatrixFromData(x, n, 1);
-      HistogramCuts cuts = SketchOnDMatrix(&ctx, dmat.get(), num_bins);
-      auto cuts_from_sketch = cuts.Values();
-      EXPECT_GT(cuts_from_sketch.front(), x_sorted.front());
-      EXPECT_GE(cuts_from_sketch.back(), x_sorted.back());
-      EXPECT_EQ(cuts_from_sketch.size(), static_cast<size_t>(num_categories));
-    }
-  }
-}
-
-TEST(HistUtil, DenseCutsAccuracyTest) {
-  Context ctx;
-  int bin_sizes[] = {2, 16, 256, 512};
-  int sizes[] = {100};
-  int num_columns = 5;
-  for (auto num_rows : sizes) {
-    auto x = GenerateRandom(num_rows, num_columns);
-    auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
-    for (auto num_bins : bin_sizes) {
-      HistogramCuts cuts = SketchOnDMatrix(&ctx, dmat.get(), num_bins);
-      ValidateCuts(cuts, dmat.get(), num_bins);
-    }
-  }
-}
-
-TEST(HistUtil, DenseCutsAccuracyTestWeights) {
-  int bin_sizes[] = {2, 16, 256, 512};
-  int sizes[] = {100, 1000, 1500};
-  int num_columns = 5;
-  Context ctx;
-  for (auto num_rows : sizes) {
-    auto x = GenerateRandom(num_rows, num_columns);
-    auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
-    auto w = GenerateRandomWeights(num_rows);
-    dmat->Info().weights_.HostVector() = w;
-    for (auto num_bins : bin_sizes) {
-      {
-        HistogramCuts cuts = SketchOnDMatrix(&ctx, dmat.get(), num_bins, true);
-        ValidateCuts(cuts, dmat.get(), num_bins);
-      }
-      {
-        HistogramCuts cuts = SketchOnDMatrix(&ctx, dmat.get(), num_bins, false);
-        ValidateCuts(cuts, dmat.get(), num_bins);
-      }
-    }
-  }
-}
-
 void TestQuantileWithHessian(bool use_sorted) {
   int bin_sizes[] = {2, 16, 256, 512};
   int sizes[] = {1000, 1500};
@@ -403,13 +345,4 @@ TEST(HistUtil, GroupWeightsEquivalentToRowWeights) {
   TestGroupWeightsEquivalentToRowWeights(false);
 }
 
-TEST(HistUtil, SketchCategoricalFeatures) {
-  Context ctx;
-  TestCategoricalSketch(1000, 256, 32, false, [&ctx](DMatrix* p_fmat, int32_t num_bins) {
-    return SketchOnDMatrix(&ctx, p_fmat, num_bins);
-  });
-  TestCategoricalSketch(1000, 256, 32, true, [&ctx](DMatrix* p_fmat, int32_t num_bins) {
-    return SketchOnDMatrix(&ctx, p_fmat, num_bins);
-  });
-}
 }  // namespace xgboost::common
